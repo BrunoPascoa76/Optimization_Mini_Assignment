@@ -1,0 +1,56 @@
+Nodes=load('MiniProjectSupportingFiles/Nodes200.txt');
+Links=load('MiniProjectSupportingFiles/Links200.txt');
+L=load('MiniProjectSupportingFiles/L200.txt');
+
+n=12;
+Cmax=1000;
+
+G=graph(L);
+N=numnodes(G);
+
+D=distances(G);
+
+[l,p]=find(triu(D,1)>Cmax); %all pairs that are too distant from each other (and such, can't both be controllers) (triu is so order doesn't matter)
+
+% VARIABLES:
+%   x_i_j   - 1 if node i is assigned to controller j (0 otherwise)
+%   y_j     - 1 if node j is a CDN controller (0 otherwise)
+
+fid = fopen('./lpsolve/equation.lp','wt');
+fprintf(fid,"min: ");
+%average sp between node and its server, to minimize (the divide by n is
+%done later)
+for i=1:N
+    for j=1:N
+        fprintf(fid,"+ %.1f x_%d_%d",D(i,j),i,j);
+    end
+end
+fprintf(fid,";\n");
+
+% must have n controllers
+for j=1:N
+    fprintf(fid,"+ y_%d",j);
+end
+fprintf(fid,"= %d;\n",n);
+
+% 1 controller per server
+for i=1:N
+    for j=1:N
+        fprintf(fid,"+ x_%d_%d",i,j);
+    end
+    fprintf(id,"= 1;\n");
+end
+
+% must be assigned to a controller
+for i=1:N
+    for j=1:N
+        fprintf(fid,"+ x_%d_%d <= y_%d;\n",i,j,j);
+    end
+end
+
+%2 nodes that are too distant from each other cannot both be controllers
+for distantPairIdx=1:length(l)
+    fprintf(fid,"+ y_%d + y_%d <= 1;\n",l(distantPairIdx),p(distantPairIdx));
+end
+
+%binary variables
